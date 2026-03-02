@@ -1,10 +1,9 @@
-fastapi
-uvicorn
-sentence-transformers
-scikit-learn
-numpy
 streamlit
-requests
-pydantic
-seaborn
+pandas
+numpy
 matplotlib
+seaborn
+scikit-learn
+sentence-transformers
+reportlab
+PyPDF2
