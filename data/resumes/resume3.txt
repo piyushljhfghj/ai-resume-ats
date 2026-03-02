@@ -1,0 +1,3 @@
+Machine learning engineer with experience in deep learning and NLP.
+Worked on TensorFlow and PyTorch.
+Strong knowledge of Python.

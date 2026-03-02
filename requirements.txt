@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sentence-transformers
+scikit-learn
+numpy
+streamlit
+requests
+pydantic
+seaborn
+matplotlib

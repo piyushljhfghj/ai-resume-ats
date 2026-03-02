@@ -1,0 +1,3 @@
+Python developer with experience in machine learning and data analysis.
+Skilled in pandas, numpy, and scikit-learn.
+Worked on NLP projects.
