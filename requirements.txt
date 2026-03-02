@@ -7,4 +7,4 @@ scikit-learn
 sentence-transformers
 reportlab
 PyPDF2
-pymupdf==1.23.7
+pymupdf==1.22.5
