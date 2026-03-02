@@ -1,25 +1,32 @@
-import fitz
-import pytesseract
-from PIL import Image
-import io
+import fitz  # PyMuPDF
 
 def extract_text_from_pdf(uploaded_file):
+    """
+    Extract text from PDF.
+    If normal text layer is empty (scanned PDF),
+    automatically fallback to OCR using PyMuPDF built-in OCR.
+    """
 
-    text = ""  
+    text = ""
 
-    with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
+    # Read file bytes once
+    file_bytes = uploaded_file.read()
+
+    with fitz.open(stream=file_bytes, filetype="pdf") as doc:
+
         for page in doc:
-            text += page.get_text()
+            page_text = page.get_text()
 
-        # If text empty → apply OCR
-        if len(text.strip()) < 50:
+            # If page has readable text
+            if page_text and page_text.strip():
+                text += page_text
 
-            for page in doc:
-                pix = page.get_pixmap()
-                img_data = pix.tobytes("png")
-                image = Image.open(io.BytesIO(img_data))
-
-                ocr_text = pytesseract.image_to_string(image)
-                text += ocr_text
+            else:
+                # Fallback to OCR (for scanned resumes)
+                try:
+                    ocr_text = page.get_text("ocr")
+                    text += ocr_text
+                except Exception:
+                    pass  # Skip if OCR fails
 
     return text.strip()
