@@ -7,3 +7,4 @@ scikit-learn
 sentence-transformers
 reportlab
 PyPDF2
+pymupdf
