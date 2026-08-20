@@ -47,13 +47,24 @@ SKILL_WEIGHTS = {
 }
 
 
-# PRECOMPUTE SKILL EMBEDDINGS 
+# PRECOMPUTE SKILL EMBEDDINGS
 
-_model = get_model()
-_skill_embeddings = _model.encode(
-    SKILL_DATABASE,
-    convert_to_tensor=True
-)
+_skill_embeddings = None
+
+
+def _get_skill_embeddings():
+    """Encode the skill vocabulary once, on first use.
+
+    Done lazily so that merely importing this module does not load the
+    model and run 30 encodes.
+    """
+    global _skill_embeddings
+    if _skill_embeddings is None:
+        _skill_embeddings = get_model().encode(
+            SKILL_DATABASE,
+            convert_to_tensor=True
+        )
+    return _skill_embeddings
 
 
 def extract_skills_semantic(text, threshold=0.55):
@@ -67,7 +78,7 @@ def extract_skills_semantic(text, threshold=0.55):
 
     text_embedding = model.encode(text, convert_to_tensor=True)
 
-    similarities = util.cos_sim(_skill_embeddings, text_embedding)
+    similarities = util.cos_sim(_get_skill_embeddings(), text_embedding)
 
     detected_skills = []
 

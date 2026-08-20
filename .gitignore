@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Environments
+venv/
+.venv/
+env/
+
+# Model cache
+.cache/
+*.safetensors
+
+# Generated reports
+*_report.pdf
+candidate_report.pdf
+screening_results.csv
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

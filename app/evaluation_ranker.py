@@ -1,29 +1,28 @@
-# Evaluation Module 
-
-import numpy as np
-
+# Evaluation Module
 
 def evaluate_ranking(predicted_order, relevant_resumes):
-    """
+    """Precision and recall of a predicted ranking against ground truth.
+
     predicted_order: list of resume names in ranked order
     relevant_resumes: list of actually relevant resumes (ground truth)
     """
+    predicted = list(predicted_order)
+    relevant = set(relevant_resumes)
 
-    true_positives = 0
-    false_positives = 0
-    false_negatives = 0
+    true_positives = sum(1 for r in predicted if r in relevant)
+    false_positives = len(predicted) - true_positives
+    false_negatives = sum(1 for r in relevant if r not in set(predicted))
 
-    for resume in predicted_order:
-        if resume in relevant_resumes:
-            true_positives += 1
-        else:
-            false_positives += 1
-
-    for resume in relevant_resumes:
-        if resume not in predicted_order:
-            false_negatives += 1
-
-    precision = true_positives / (true_positives + false_positives)
-    recall = true_positives / (true_positives + false_negatives)
+    # An empty prediction or empty ground truth would otherwise divide by zero.
+    precision = (
+        true_positives / (true_positives + false_positives)
+        if (true_positives + false_positives)
+        else 0.0
+    )
+    recall = (
+        true_positives / (true_positives + false_negatives)
+        if (true_positives + false_negatives)
+        else 0.0
+    )
 
     return precision, recall

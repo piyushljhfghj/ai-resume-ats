@@ -1,48 +1,32 @@
-# Import libraries
-import os
+"""TF-IDF baseline ranking. Run as a script: python -m app.main"""
+
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-
-# Step 1: Load Job Description
-with open("data/job_description.txt", "r", encoding="utf-8") as file:
-    job_description = file.read()
+from app.utils import load_job_description, load_resumes
 
 
-# Step 2: Load All Resumes
-resume_folder = "data/resumes"
-resumes = []
-resume_names = []
+def rank_with_tfidf(job_description, resumes):
+    """Return (index, score) pairs, best first."""
+    documents = [job_description] + resumes
 
-for filename in os.listdir(resume_folder):
-    if filename.endswith(".txt"):
-        file_path = os.path.join(resume_folder, filename)
-        with open(file_path, "r", encoding="utf-8") as file:
-            resumes.append(file.read())
-            resume_names.append(filename)
+    vectorizer = TfidfVectorizer(stop_words='english')
+    tfidf_matrix = vectorizer.fit_transform(documents)
 
+    scores = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
 
-# Step 3: Combine Job Description and Resumes
-documents = [job_description] + resumes
+    return [(i, scores[i]) for i in np.argsort(scores)[::-1]]
 
 
-# Step 4: Convert Text into Numbers using TF-IDF
-vectorizer = TfidfVectorizer(stop_words='english')
-tfidf_matrix = vectorizer.fit_transform(documents)
+def main():
+    job_description = load_job_description()
+    resumes, resume_names = load_resumes()
+
+    print("\nResume Ranking Results (TF-IDF):\n")
+    for index, score in rank_with_tfidf(job_description, resumes):
+        print(f"{resume_names[index]}  -->  Score: {score:.4f}")
 
 
-# Step 5: Compute Cosine Similarity
-similarity_scores = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:])
-
-
-# Step 6: Rank Resumes
-scores = similarity_scores.flatten()
-sorted_indexes = np.argsort(scores)[::-1]
-
-
-# Step 7: Print Ranking
-print("\nResume Ranking Results:\n")
-
-for index in sorted_indexes:
-    print(f"{resume_names[index]}  -->  Score: {scores[index]:.4f}")
+if __name__ == "__main__":
+    main()

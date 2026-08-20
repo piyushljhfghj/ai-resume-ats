@@ -1,10 +1,18 @@
-streamlit
-pandas
-numpy
-matplotlib
-seaborn
-scikit-learn
-sentence-transformers
-reportlab
-PyPDF2
-pymupdf
+# Web
+streamlit==1.54.0
+fastapi==0.133.1
+uvicorn==0.41.0
+pydantic==2.12.5
+
+# ML / scoring
+sentence-transformers==5.2.3
+scikit-learn==1.8.0
+numpy==2.4.2
+pandas==2.3.3
+
+# Charts (Altair ships with Streamlit; no extra chart dependency)
+altair==6.0.0
+
+# Documents
+pymupdf==1.27.1
+reportlab==4.4.10

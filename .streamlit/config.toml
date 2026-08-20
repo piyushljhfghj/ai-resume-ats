@@ -1,0 +1,33 @@
+[theme]
+font = 'system-ui, -apple-system, "Segoe UI", sans-serif'
+headingFont = 'system-ui, -apple-system, "Segoe UI", sans-serif'
+baseRadius = "0.6rem"
+buttonRadius = "0.5rem"
+showWidgetBorder = true
+showSidebarBorder = true
+
+# Surfaces match the palette the charts were validated against, so chart
+# ink and page ink sit on the same ground.
+[theme.light]
+primaryColor = "#4a3aa7"
+backgroundColor = "#f9f9f7"
+secondaryBackgroundColor = "#fcfcfb"
+textColor = "#0b0b0b"
+borderColor = "#e1e0d9"
+linkColor = "#4a3aa7"
+
+[theme.light.sidebar]
+backgroundColor = "#fcfcfb"
+borderColor = "#e1e0d9"
+
+[theme.dark]
+primaryColor = "#c084fc"
+backgroundColor = "#0d0d0d"
+secondaryBackgroundColor = "#1a1a19"
+textColor = "#ffffff"
+borderColor = "#2c2c2a"
+linkColor = "#c084fc"
+
+[theme.dark.sidebar]
+backgroundColor = "#1a1a19"
+borderColor = "#2c2c2a"

@@ -1,48 +1,32 @@
-# Import required libraries
-import os
+"""Embedding baseline ranking. Run as a script: python -m app.embedding_ranker"""
+
 import numpy as np
-from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
-
-# Load pretrained embedding model
-model = SentenceTransformer('all-MiniLM-L6-v2')
-
-
-# Step 1: Load Job Description
-with open("data/job_description.txt", "r", encoding="utf-8") as file:
-    job_description = file.read()
+from app.model_loader import get_model
+from app.utils import load_job_description, load_resumes
 
 
-# Step 2: Load All Resumes
-resume_folder = "data/resumes"
-resumes = []
-resume_names = []
+def rank_with_embeddings(job_description, resumes):
+    """Return (index, score) pairs, best first."""
+    model = get_model()
 
-for filename in os.listdir(resume_folder):
-    if filename.endswith(".txt"):
-        file_path = os.path.join(resume_folder, filename)
-        with open(file_path, "r", encoding="utf-8") as file:
-            resumes.append(file.read())
-            resume_names.append(filename)
+    job_embedding = model.encode([job_description])
+    resume_embeddings = model.encode(resumes)
 
+    scores = cosine_similarity(job_embedding, resume_embeddings).flatten()
 
-# Step 3: Generate Embeddings
-job_embedding = model.encode([job_description])
-resume_embeddings = model.encode(resumes)
+    return [(i, scores[i]) for i in np.argsort(scores)[::-1]]
 
 
-# Step 4: Compute Cosine Similarity
-similarity_scores = cosine_similarity(job_embedding, resume_embeddings)
+def main():
+    job_description = load_job_description()
+    resumes, resume_names = load_resumes()
+
+    print("\nEmbedding-Based Resume Ranking:\n")
+    for index, score in rank_with_embeddings(job_description, resumes):
+        print(f"{resume_names[index]}  -->  Score: {score:.4f}")
 
 
-# Step 5: Rank Resumes
-scores = similarity_scores.flatten()
-sorted_indexes = np.argsort(scores)[::-1]
-
-
-# Step 6: Print Ranking
-print("\n🔵 Embedding-Based Resume Ranking:\n")
-
-for index in sorted_indexes:
-    print(f"{resume_names[index]}  -->  Score: {scores[index]:.4f}")
+if __name__ == "__main__":
+    main()
