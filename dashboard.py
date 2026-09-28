@@ -15,8 +15,10 @@ from app.charts import (
 )
 from app.config import EXPERIENCE_WEIGHT, SEMANTIC_WEIGHT, SKILL_WEIGHT
 from app.intelligent_ranker import rank_resumes
+from app.jd_validator import INVALID_JD_MESSAGE, validate_job_description
 from app.report_generator import generate_pdf_report
 from app.ui_theme import card_accent_css, fit_band_colour, hero_html, page_css
+from app.utils import inputs_fingerprint
 
 st.set_page_config(
     page_title="Resume Screening",
@@ -91,6 +93,59 @@ def label_for(key):
     }[key]
 
 
+def _skills_text(skills):
+    return ", ".join(skills) if skills else "none"
+
+
+def render_evidence(result):
+    """The exact facts each component score was computed from."""
+    evidence = result.get("evidence") or {}
+    semantic = evidence.get("semantic", {})
+    skill = evidence.get("skill")
+    experience = evidence.get("experience")
+
+    st.markdown(f"**Semantic — {result['semantic_score']:.1f}%**")
+    st.caption(semantic.get("note", "Embedding similarity between resume and JD."))
+
+    st.markdown(f"**Skill — {result['skill_score']:.1f}%**")
+    if skill:
+        st.markdown(
+            f"- Required in JD: {_skills_text(skill['required'])}\n"
+            f"- Preferred in JD: {_skills_text(skill['preferred'])}\n"
+            f"- Matched required: {_skills_text(skill['matched_required'])}\n"
+            f"- Matched preferred: {_skills_text(skill['matched_preferred'])}"
+        )
+        st.caption(skill["note"])
+
+    st.markdown(f"**Experience — {result['experience_score']:.1f}%**")
+    if experience:
+        required = experience["required_years"]
+        found = experience["resume_years"]
+        st.markdown(
+            f"- Required by JD: {f'{required} year(s)' if required else 'not stated'}\n"
+            f"- Found in resume: {f'{found} year(s)' if found else 'not determinable'}"
+        )
+        st.caption(experience["note"])
+
+    formula = evidence.get("final", {}).get("formula")
+    st.markdown(f"**Final — {result['final_score']:.1f}%**")
+    st.caption(formula or result["explanation"])
+
+
+def render_failures(failures):
+    """Files that could not be read are named, not silently dropped."""
+    if not failures:
+        return
+    lines = "\n".join(
+        f"- `{f['filename']}` — {f['reason']}" for f in failures
+    )
+    st.warning(
+        f"{len(failures)} file(s) could not be screened and were not scored:\n\n"
+        + lines,
+        icon=":material/error:",
+    )
+
+
 # ---------------------------------------------------------------- sidebar ---
 
 with st.sidebar:
@@ -128,9 +183,9 @@ with st.sidebar:
     if not jd_text.strip() or not uploaded_files:
         st.caption("Add a job description and at least one resume to begin.")
 
-    if st.session_state.get("results"):
+    if st.session_state.get("screening"):
         if st.button("Clear results", width="stretch", icon=":material/refresh:"):
-            st.session_state.pop("results", None)
+            st.session_state.pop("screening", None)
             st.rerun()
 
     st.divider()
@@ -143,22 +198,35 @@ with st.sidebar:
 
 # ---------------------------------------------------------------- run -------
 
+fingerprint = inputs_fingerprint(jd_text, uploaded_files)
+
 if run:
     with st.spinner("Reading resumes and scoring against the role..."):
-        results = rank_resumes(jd_text, uploaded_files)
+        run_results, run_failures = rank_resumes(jd_text, uploaded_files)
 
-    if not results:
-        st.error("None of the uploaded files could be read as text.")
-    else:
-        # Persist, so downloading a report does not wipe the page on rerun.
-        st.session_state["results"] = results
+    # Always replace the whole screening -- even when nothing could be scored
+    # -- so no result from a previous run survives into this one. Persisted
+    # so downloading a report (which reruns the script) keeps the page.
+    st.session_state["screening"] = {
+        "fingerprint": fingerprint,
+        "jd_validation": validate_job_description(jd_text),
+        "results": run_results,
+        "failures": run_failures,
+    }
 
-results = st.session_state.get("results")
+screening = st.session_state.get("screening")
+
+if screening is not None and screening.get("fingerprint") != fingerprint:
+    # The JD or the uploaded files changed since this screening ran; its
+    # results describe inputs that no longer exist.
+    st.session_state.pop("screening", None)
+    screening = None
+    st.toast("Inputs changed — previous results cleared. Run the screening again.")
 
 
 # ---------------------------------------------------------------- header ----
 
-if not results:
+if screening is None:
     st.markdown(
         hero_html(
             "Candidate ranking",
@@ -178,6 +246,45 @@ if not results:
             "</div>",
             unsafe_allow_html=True,
         )
+    st.stop()
+
+
+results = screening["results"]
+jd_validation = screening["jd_validation"]
+
+if not jd_validation["valid"]:
+    st.markdown(
+        hero_html("Candidate ranking", "The screening could not be run."),
+        unsafe_allow_html=True,
+    )
+    reasons = "\n".join(f"- {r}" for r in jd_validation["reasons"])
+    st.error(
+        f"**Invalid Job Description**\n\n{INVALID_JD_MESSAGE}\n\n{reasons}",
+        icon=":material/block:",
+    )
+    render_failures(screening["failures"])
+    if results:
+        st.caption(
+            "No candidate was scored against this job description; every "
+            "score is 0 and none of these is a match."
+        )
+        st.dataframe(
+            pd.DataFrame(
+                {
+                    "Candidate": [r["filename"] for r in results],
+                    "Status": "Not scored — invalid job description",
+                    "Final": [f"{r['final_score']:.0f}%" for r in results],
+                }
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+    st.stop()
+
+render_failures(screening["failures"])
+
+if not results:
+    st.error("None of the uploaded files could be read as text.")
     st.stop()
 
 
@@ -275,7 +382,9 @@ with overview_tab:
 
         st.download_button(
             "Export all results (CSV)",
-            data=df.to_csv(index=False).encode("utf-8"),
+            data=df.drop(columns=["evidence"], errors="ignore")
+            .to_csv(index=False)
+            .encode("utf-8"),
             file_name="screening_results.csv",
             mime="text/csv",
             width="stretch",
@@ -382,8 +491,8 @@ with candidates_tab:
                 )
                 chip_row(result["missing_skills"], "missing")
 
-            with st.expander("Scoring detail"):
-                st.write(result["explanation"])
+            with st.expander("Scoring evidence"):
+                render_evidence(result)
 
             st.download_button(
                 "Download report (PDF)",

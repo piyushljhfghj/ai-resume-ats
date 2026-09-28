@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
 from app.intelligent_ranker import rank_texts
+from app.jd_validator import validate_job_description
 from app.logger import logger
 
 app = FastAPI(title="AI Resume Screening API")
@@ -43,7 +44,12 @@ def rank(request: ResumeRequest):
         logger.exception("Ranking failed")
         raise HTTPException(status_code=500, detail="Ranking failed")
 
+    validation = validate_job_description(request.job_description)
+
     return {
+        "status": "ok" if validation["valid"] else "invalid_job_description",
+        "job_description_valid": validation["valid"],
+        "job_description_issues": validation["reasons"],
         "total_candidates": len(results),
         "ranking": results,
     }

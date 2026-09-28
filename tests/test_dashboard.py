@@ -8,6 +8,8 @@ Session state is seeded directly so no upload or model load is needed.
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from app.utils import inputs_fingerprint
+
 RESULTS = [
     {"filename": "alice.pdf", "semantic_score": 80.1, "skill_score": 100.0,
      "experience_score": 100.0, "final_score": 92.0,
@@ -20,10 +22,24 @@ RESULTS = [
 ]
 
 
-def run_app(results=None):
+VALID = {"valid": True, "reasons": [], "stats": {}}
+
+
+def screening(results, jd_validation=VALID, failures=(), fingerprint=None):
+    # The app starts with an empty JD and no uploads; a screening only
+    # survives while its fingerprint matches the current inputs.
+    return {
+        "fingerprint": fingerprint or inputs_fingerprint("", None),
+        "jd_validation": jd_validation,
+        "results": results,
+        "failures": list(failures),
+    }
+
+
+def run_app(results=None, **kwargs):
     app = AppTest.from_file("dashboard.py", default_timeout=120)
     if results is not None:
-        app.session_state["results"] = results
+        app.session_state["screening"] = screening(results, **kwargs)
     app.run()
     return app
 
@@ -72,3 +88,66 @@ class TestResultsView:
         app.run()
         assert not app.exception
         assert len(app.get("arrow_vega_lite_chart")) == 3
+
+
+@pytest.fixture(scope="module")
+def invalid_app():
+    zeroed = [
+        {**r, "semantic_score": 0.0, "skill_score": 0.0,
+         "experience_score": 0.0, "final_score": 0.0,
+         "matched_skills": [], "missing_skills": [], "status": "invalid_jd"}
+        for r in RESULTS
+    ]
+    return run_app(
+        zeroed,
+        jd_validation={"valid": False, "reasons": ["Mostly random."], "stats": {}},
+    )
+
+
+class TestInvalidJobDescription:
+    def test_renders_without_error(self, invalid_app):
+        assert not invalid_app.exception
+
+    def test_says_invalid(self, invalid_app):
+        text = " ".join(e.value for e in invalid_app.error)
+        assert "Invalid Job Description" in text
+        assert "meaningful job description" in text
+
+    def test_no_ranking_or_match_badges(self, invalid_app):
+        assert len(invalid_app.get("arrow_vega_lite_chart")) == 0
+        assert len(invalid_app.tabs) == 0
+        assert not [m for m in invalid_app.metric if m.label == "Top score"]
+
+
+class TestFailedFiles:
+    def test_failed_file_named(self):
+        app = run_app(
+            RESULTS,
+            failures=[{"filename": "scan.pdf", "reason": "may be scanned"}],
+        )
+        assert not app.exception
+        text = " ".join(w.value for w in app.warning)
+        assert "scan.pdf" in text and "scanned" in text
+
+    def test_all_files_failed_shows_error_not_old_results(self):
+        app = run_app(
+            [], failures=[{"filename": "scan.pdf", "reason": "may be scanned"}]
+        )
+        assert not app.exception
+        assert len(app.get("arrow_vega_lite_chart")) == 0
+
+
+class TestStaleResults:
+    def test_results_for_other_inputs_are_discarded(self):
+        app = run_app(RESULTS, fingerprint="inputs-from-an-earlier-run")
+        assert not app.exception
+        assert "screening" not in app.session_state
+        assert len(app.get("arrow_vega_lite_chart")) == 0
+
+    def test_editing_the_jd_clears_results(self):
+        app = run_app(RESULTS)
+        assert len(app.get("arrow_vega_lite_chart")) == 3
+        app.text_area[0].input("A completely different role").run()
+        assert not app.exception
+        assert "screening" not in app.session_state
+        assert len(app.get("arrow_vega_lite_chart")) == 0

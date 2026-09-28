@@ -31,6 +31,29 @@ class TestRank:
         assert body["total_candidates"] == 2
         assert body["ranking"][0]["filename"] == "strong.txt"
 
+    def test_invalid_job_description_is_flagged_and_zeroed(self, client):
+        response = client.post("/rank", json={
+            "job_description": "gdssgd dsfefds gdgd gdg gdfgfdgd vbtsgdsfdad",
+            "resumes": ["python and machine learning expert"],
+            "resume_names": ["strong.txt"],
+        })
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "invalid_job_description"
+        assert body["job_description_valid"] is False
+        assert body["job_description_issues"]
+        assert body["ranking"][0]["final_score"] == 0
+        assert body["ranking"][0]["status"] == "invalid_jd"
+
+    def test_valid_job_description_status_ok(self, client):
+        response = client.post("/rank", json={
+            "job_description": "Required: Python and machine learning.",
+            "resumes": ["python"],
+            "resume_names": ["a.txt"],
+        })
+        assert response.json()["status"] == "ok"
+
     def test_mismatched_lengths_rejected(self, client):
         response = client.post("/rank", json={
             "job_description": "Python",

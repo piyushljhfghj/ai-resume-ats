@@ -20,6 +20,9 @@ class UploadedFile:
     def read(self):
         return self._buf.read()
 
+    def seek(self, pos):
+        return self._buf.seek(pos)
+
 
 JD = "Required: Python and machine learning. Must have Docker."
 
@@ -48,11 +51,12 @@ class TestSkillScore:
         _, matched, missing = compute_skill_score("python developer", jd)
         assert not (set(matched) & set(missing))
 
-    def test_unrecognised_jd_is_neutral_not_zero(self):
-        # A JD naming no known skill cannot discriminate; scoring everyone 0
-        # would silently cap all final scores at 60.
+    def test_unrecognised_jd_gives_no_unearned_credit(self):
+        # Regression: this used to return a "neutral" 100 with no matched
+        # skills -- a perfect skill score backed by no evidence.
         score, matched, missing = compute_skill_score("python", "we want a nice person")
-        assert score == 100.0
+        assert score == 0.0
+        assert matched == [] and missing == []
 
 
 class TestFinalScore:
@@ -94,26 +98,39 @@ class TestRankTexts:
 class TestRankResumes:
     def test_reads_txt_uploads(self):
         files = [UploadedFile("r1.txt", b"python and docker")]
-        results = rank_resumes(JD, files)
+        results, failures = rank_resumes(JD, files)
         assert len(results) == 1
         assert results[0]["filename"] == "r1.txt"
+        assert failures == []
 
     def test_non_utf8_bytes_do_not_crash(self):
         # cp1252 smart quote -- a hard utf-8 decode would raise here.
         files = [UploadedFile("r1.txt", b"python \x93developer\x94")]
-        results = rank_resumes(JD, files)
+        results, _ = rank_resumes(JD, files)
         assert len(results) == 1
 
-    def test_unreadable_file_is_skipped_not_fatal(self):
+    def test_unreadable_file_is_reported_not_fatal(self):
         class Exploding:
             name = "bad.txt"
 
             def read(self):
                 raise IOError("disk gone")
 
-        results = rank_resumes(JD, [Exploding(), UploadedFile("ok.txt", b"python")])
+        results, failures = rank_resumes(
+            JD, [Exploding(), UploadedFile("ok.txt", b"python")]
+        )
         assert [r["filename"] for r in results] == ["ok.txt"]
+        assert [f["filename"] for f in failures] == ["bad.txt"]
 
-    def test_empty_file_is_skipped(self):
-        results = rank_resumes(JD, [UploadedFile("empty.txt", b"   ")])
+    def test_empty_file_is_reported_not_scored(self):
+        results, failures = rank_resumes(JD, [UploadedFile("empty.txt", b"   ")])
         assert results == []
+        assert failures[0]["filename"] == "empty.txt"
+
+    def test_same_upload_can_be_screened_twice(self):
+        # Streamlit hands back the same file object on a later run; its read
+        # pointer is at EOF, which used to make it look empty.
+        f = UploadedFile("r1.txt", b"python and docker")
+        rank_resumes(JD, [f])
+        results, failures = rank_resumes(JD, [f])
+        assert len(results) == 1 and failures == []

@@ -13,6 +13,11 @@ _RANGE_PATTERN = re.compile(
 
 _EXPLICIT_PATTERN = re.compile(r'(\d{1,2})\s*\+?\s*(?:years|year|yrs|yr)\b')
 
+# "1-3 years", "2 to 4 yrs" -- in a JD the lower bound is the requirement.
+_YEARS_RANGE_PATTERN = re.compile(
+    r'(\d{1,2})\s*(?:[-–—]|to)\s*(\d{1,2})\s*\+?\s*(?:years|year|yrs|yr)\b'
+)
+
 
 def _current_year():
     return datetime.now().year
@@ -72,18 +77,57 @@ def extract_total_experience(text):
     return max(extract_explicit_years(text), extract_year_ranges(text))
 
 
-def compute_experience_score(resume_text, jd_text):
-    jd_years = extract_total_experience(jd_text)
+def extract_required_years(jd_text):
+    """Minimum years a JD asks for. "1-3 years" means at least 1, not 3."""
+    text = jd_text.lower()
+    minimums = [int(low) for low, _ in _YEARS_RANGE_PATTERN.findall(text)]
+    # Blank out the ranges so their upper bound is not re-read as a minimum.
+    remainder = _YEARS_RANGE_PATTERN.sub(" ", text)
+    minimums += [int(m) for m in _EXPLICIT_PATTERN.findall(remainder)]
+    return max(minimums, default=0)
+
+
+def experience_evidence(resume_text, jd_text):
+    """Experience score plus the facts it was computed from.
+
+    Scoring rules (unknown never earns credit):
+      * JD minimum N, resume shows >= N years      -> 100
+      * JD minimum N, resume shows 0 < y < N years -> y / N * 100
+      * resume shows no determinable experience    -> 0
+      * JD states no minimum, resume shows > 0     -> 100 (requirement met)
+    """
+    jd_years = extract_required_years(jd_text)
     resume_years = extract_total_experience(resume_text)
 
-    # The JD states no requirement, so this dimension cannot discriminate.
-    if jd_years == 0:
-        return 100.0
-
     if resume_years <= 0:
-        return 0.0
+        score = 0.0
+        note = (
+            "No years of experience could be determined from the resume "
+            "(no 'N years' statement or date ranges), so no credit is given."
+        )
+    elif jd_years == 0:
+        score = 100.0
+        note = (
+            f"The job description states no minimum; the resume shows "
+            f"{resume_years} year(s) of experience."
+        )
+    elif resume_years >= jd_years:
+        score = 100.0
+        note = f"Resume shows {resume_years} year(s); the role asks for {jd_years}."
+    else:
+        score = round((resume_years / jd_years) * 100, 1)
+        note = (
+            f"Resume shows {resume_years} of the {jd_years} year(s) required "
+            f"({resume_years}/{jd_years})."
+        )
 
-    if resume_years >= jd_years:
-        return 100.0
+    return {
+        "score": score,
+        "required_years": jd_years or None,
+        "resume_years": resume_years or None,
+        "note": note,
+    }
 
-    return round((resume_years / jd_years) * 100, 1)
+
+def compute_experience_score(resume_text, jd_text):
+    return experience_evidence(resume_text, jd_text)["score"]

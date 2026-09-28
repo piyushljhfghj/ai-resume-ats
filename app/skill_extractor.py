@@ -10,6 +10,8 @@ SKILL_DATABASE = [
     # AI / ML
     "machine learning", "deep learning", "tensorflow", "pytorch",
     "scikit-learn", "nlp", "computer vision",
+    "llm", "rag", "openai", "sentence transformers", "semantic search",
+    "faiss", "vector database",
 
     # Backend
     "django", "flask", "fastapi", "node.js", "express",
@@ -24,10 +26,10 @@ SKILL_DATABASE = [
     "aws", "azure", "gcp",
 
     # Databases
-    "mysql", "postgresql", "mongodb", "redis",
+    "sql", "mysql", "postgresql", "mongodb", "redis",
 
     # Tools
-    "git", "linux",
+    "git", "linux", "streamlit",
 
     # Data
     "pandas", "numpy",
@@ -49,7 +51,9 @@ def extract_skills_from_text(text):
     found = []
 
     for skill in SKILL_DATABASE:
-        pattern = r"\b" + re.escape(skill) + r"\b"
+        # Lookarounds rather than \b, which never matches after "c++". An
+        # optional plural "s" lets "REST APIs" count as "rest api".
+        pattern = r"(?<!\w)" + re.escape(skill) + r"s?(?!\w)"
         if re.search(pattern, text):
             found.append(skill)
 

@@ -58,14 +58,38 @@ Final Score = 0.4 * Semantic Similarity
 Weights live in `app/config.py`.
 
 - **Semantic** — cosine similarity between JD and resume embeddings
-  (`all-mpnet-base-v2`).
+  (`all-mpnet-base-v2`), negative values clipped to 0.
 - **Skill** — required skills count double the weight of preferred ones.
   A skill named in both halves of the JD counts once, as required.
 - **Experience** — explicit durations ("5+ years") and date ranges
-  ("2020 – Present"). Overlapping ranges are merged, not summed.
+  ("2020 – Present"). Overlapping ranges are merged, not summed. A JD
+  range such as "1–3 years" means a minimum of 1.
 
-A dimension the JD says nothing about scores neutral (100) rather than 0,
-so it does not silently cap every candidate's total.
+Every component is evidence-based — unknown information earns no credit:
+
+| Situation | Score |
+| --- | --- |
+| JD names no skill from the vocabulary | Skill = 0 (not assessable) |
+| No JD skill found in the resume | Skill = 0 |
+| Resume experience not determinable | Experience = 0 |
+| JD states no minimum, resume shows experience | Experience = 100 |
+
+The final score is always computed from the displayed (rounded)
+components, and each result carries an `evidence` dict — the JD's
+required/preferred skills, which ones matched, the weights, required vs.
+found years, and the exact formula — shown under "Scoring evidence" in
+the dashboard.
+
+### Invalid job descriptions
+
+`app/jd_validator.py` rejects JDs that are not meaningful text before any
+scoring runs: mostly random-character words, too few meaningful words,
+one word repeated excessively, mostly numbers, or no role / responsibility /
+qualification / skill language at all. It does **not** require recognised
+skills, so short real JDs ("Python developer", "Barista wanted") pass.
+For an invalid JD every candidate gets `status: "invalid_jd"` and all
+scores 0; the dashboard shows "Invalid Job Description" instead of a
+ranking, and `/rank` returns `status: "invalid_job_description"`.
 
 ## Baselines
 
@@ -145,7 +169,11 @@ silently drops the view settings and Vega's default frame returns.
   second ~420MB copy.
 - `rank_texts(jd, [(name, text), ...])` is the core entry point and takes
   plain strings. `rank_resumes(jd, uploaded_files)` wraps it for file
-  uploads. A file that cannot be read is skipped and logged, not fatal.
+  uploads and returns `(results, failures)`. A file that cannot be read
+  (corrupted, or a scanned PDF with no text layer) is never scored; it is
+  listed in `failures` with the reason and named in the dashboard.
+- The dashboard stores each run with a fingerprint of its inputs; editing
+  the JD or adding/removing a resume discards the old results.
 
 ## Limitations
 

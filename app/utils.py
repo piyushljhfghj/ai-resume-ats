@@ -3,9 +3,28 @@
 
 # app/utils.py
 
+import hashlib
 import os
 import re
 import string
+
+
+def inputs_fingerprint(jd_text, uploaded_files):
+    """Stable id for one set of screening inputs (JD + uploaded files).
+
+    The dashboard stores it next to its results; when the JD is edited or a
+    file is added/removed the fingerprint changes and the old results are
+    discarded instead of being shown against the new inputs.
+    """
+    h = hashlib.sha256((jd_text or "").strip().encode("utf-8"))
+    for f in uploaded_files or []:
+        ident = (
+            getattr(f, "file_id", None),
+            getattr(f, "name", str(f)),
+            getattr(f, "size", None),
+        )
+        h.update(repr(ident).encode("utf-8"))
+    return h.hexdigest()
 
 
 # Text Cleaning 

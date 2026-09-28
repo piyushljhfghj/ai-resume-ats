@@ -1,6 +1,8 @@
 from app.experience_engine import (
     compute_experience_score,
+    experience_evidence,
     extract_explicit_years,
+    extract_required_years,
     extract_total_experience,
     extract_year_ranges,
 )
@@ -53,8 +55,32 @@ class TestYearRanges:
 
 
 class TestExperienceScore:
-    def test_no_requirement_is_neutral(self):
+    def test_no_requirement_met_by_evidenced_experience(self):
         assert compute_experience_score("2019-2023", "no years mentioned") == 100.0
+
+    def test_no_requirement_and_no_evidence_is_not_free_credit(self):
+        # Regression: an undeterminable experience used to score 100 whenever
+        # the JD stated no minimum.
+        assert compute_experience_score("no dates at all", "no years mentioned") == 0.0
+
+    def test_jd_range_uses_lower_bound(self):
+        # "1-3 years" asks for at least 1; it used to be read as 3.
+        assert extract_required_years("1–3 years of experience") == 1
+        assert compute_experience_score("2 years", "1-3 years of experience") == 100.0
+
+    def test_jd_plain_requirement(self):
+        assert extract_required_years("5+ years required") == 5
+
+    def test_evidence_reports_inputs(self):
+        ev = experience_evidence("2 years", "4 years required")
+        assert ev["score"] == 50.0
+        assert ev["required_years"] == 4
+        assert ev["resume_years"] == 2
+
+    def test_evidence_marks_unknown(self):
+        ev = experience_evidence("no dates", "4 years required")
+        assert ev["score"] == 0.0
+        assert ev["resume_years"] is None
 
     def test_meets_requirement(self):
         assert compute_experience_score("8 years", "5+ years required") == 100.0
