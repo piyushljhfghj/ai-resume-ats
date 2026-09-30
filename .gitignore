@@ -9,6 +9,9 @@ venv/
 .venv/
 env/
 
+# Secrets (OAuth client secret, cookie key) -- see secrets.toml.example
+.streamlit/secrets.toml
+
 # Model cache
 .cache/
 *.safetensors

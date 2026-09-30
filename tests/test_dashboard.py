@@ -9,6 +9,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from app.utils import inputs_fingerprint
+from tests.test_auth import signed_in  # noqa: F401  (autouse fixture)
 
 RESULTS = [
     {"filename": "alice.pdf", "semantic_score": 80.1, "skill_score": 100.0,

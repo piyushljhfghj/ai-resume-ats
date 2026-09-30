@@ -6,6 +6,7 @@ import json
 import pandas as pd
 import streamlit as st
 
+from app import auth
 from app.charts import (
     STRONG_MATCH_THRESHOLD,
     breakdown_chart,
@@ -42,6 +43,9 @@ THEME = active_theme()
 PALETTE = get_palette(THEME)
 
 st.markdown(page_css(PALETTE), unsafe_allow_html=True)
+
+# Nothing below runs until an allowed Google user is signed in.
+USER = auth.require_login()
 
 
 # ---------------------------------------------------------------- helpers ---
@@ -151,6 +155,14 @@ def render_failures(failures):
 with st.sidebar:
     st.markdown('<div class="page-title">Resume Screening</div>', unsafe_allow_html=True)
     st.caption("Rank candidates against a role, with the reasoning shown.")
+
+    st.caption(f":material/account_circle: Signed in as **{USER['email']}**")
+    st.button(
+        "Sign out",
+        icon=":material/logout:",
+        on_click=auth.sign_out,
+        key="sign-out",
+    )
 
     st.divider()
 

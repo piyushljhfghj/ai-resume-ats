@@ -4,6 +4,9 @@ fastapi==0.133.1
 uvicorn==0.41.0
 pydantic==2.12.5
 
+# Auth (Streamlit's st.login uses Authlib for Google OpenID Connect)
+Authlib==1.8.0
+
 # ML / scoring
 sentence-transformers==5.2.3
 scikit-learn==1.8.0

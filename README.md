@@ -28,6 +28,25 @@ Inputs live in the sidebar; results fill the main pane across three tabs:
 Results are held in session state, so downloading a report does not clear
 the page. Charts follow the active Streamlit theme in both light and dark.
 
+### Sign-in (Google)
+
+The dashboard requires Google sign-in (`app/auth.py`, built on Streamlit's
+`st.login`). A first sign-in is the sign-up; the app never stores or sees a
+password. If sign-in is not configured the app stays locked.
+
+1. In Google Cloud Console → APIs & Services → Credentials, create an
+   **OAuth client ID** (Web application) with these authorised redirect URIs:
+   `http://localhost:8501/oauth2callback` and
+   `https://<your-app>.streamlit.app/oauth2callback`.
+2. Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and
+   fill in the client ID/secret and a random `cookie_secret`. On Streamlit
+   Cloud, paste the same content (with the cloud `redirect_uri`) into
+   Settings → Secrets.
+3. Optionally restrict access with `[access] allowed_emails` /
+   `allowed_domains`. Unverified Google emails are always refused.
+
+Signing out clears that browser session's screening results.
+
 API (FastAPI):
 
 ```
